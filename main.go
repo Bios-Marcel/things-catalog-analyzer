@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -18,13 +19,26 @@ type item struct {
 	count int
 }
 
+type category struct {
+	name  string
+	items []item
+}
+
+func (c *category) count() int {
+	var count int
+	for _, item := range c.items {
+		count += item.count
+	}
+	return count
+}
+
 func main() {
 	absolutePath, pathError := filepath.Abs(os.Args[1])
 	if pathError != nil {
 		log.Fatalf("Error reading file: %s\n", pathError)
 	}
 
-	categoryMapping, parseError := parseFile(absolutePath)
+	categories, parseError := parseFile(absolutePath)
 	if parseError != nil {
 		log.Fatalf("Error parsing:\n%s\n", parseError)
 	}
@@ -33,41 +47,45 @@ func main() {
 	fmt.Fprintln(writer, "Count\tName")
 	fmt.Fprintln(writer, "----\t----")
 
+	sort.Slice(categories, func(a, b int) bool {
+		return categories[a].count() > categories[b].count()
+	})
+
 	var overallCount int
-	for category, items := range categoryMapping {
-		var categoryCount int
-		for _, item := range items {
-			if item.count != countTodo {
-				categoryCount += item.count
-			}
-		}
-		fmt.Fprintf(writer, "%d\t%s\n", categoryCount, category)
+	for _, category := range categories {
+		categoryCount := category.count()
+		fmt.Fprintf(writer, "%d\t%s\n", categoryCount, category.name)
 		overallCount += categoryCount
 	}
 
-	writer.Flush()
+	if flushError := writer.Flush(); flushError != nil {
+		log.Fatalf("Error printing results: %s\n", flushError)
+	}
 
 	fmt.Printf("\n\nOverall Item count: %d\n", overallCount)
 }
 
-func parseFile(filePath string) (map[string][]item, error) {
-	categoryMapping := make(map[string][]item)
-
+func parseFile(filePath string) ([]*category, error) {
 	fileHandle, fileErr := os.Open(filePath)
 	if fileErr != nil {
 		log.Fatal(fileErr)
 	}
 	defer fileHandle.Close()
 
-	scanner := bufio.NewScanner(fileHandle)
-	var lastCategory string
+	var categories []*category
+	var lastCategory *category
 	lastLine := 1
+
+	scanner := bufio.NewScanner(fileHandle)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
 		if strings.HasPrefix(line, "##") {
 			// Category Heading
-			lastCategory = strings.TrimSpace(strings.TrimPrefix(line, "##"))
+			lastCategory = &category{
+				name: strings.TrimSpace(strings.TrimPrefix(line, "##")),
+			}
+			categories = append(categories, lastCategory)
 		} else if line != "" {
 			// Item
 			cells := strings.Split(line, ",")
@@ -92,7 +110,7 @@ func parseFile(filePath string) (map[string][]item, error) {
 				continue
 			}
 
-			categoryMapping[lastCategory] = append(categoryMapping[lastCategory], item{
+			lastCategory.items = append(lastCategory.items, item{
 				name:  strings.TrimSpace(cells[0]),
 				count: count,
 			})
@@ -101,5 +119,5 @@ func parseFile(filePath string) (map[string][]item, error) {
 		lastLine++
 	}
 
-	return categoryMapping, nil
+	return categories, nil
 }
