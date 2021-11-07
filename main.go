@@ -78,10 +78,11 @@ func parseFile(filePath string) ([]*category, error) {
 
 	var categories []*category
 	var lastCategory *category
-	lastLine := 1
+	var lastLineNumber int
 
 	scanner := bufio.NewScanner(fileHandle)
 	for scanner.Scan() {
+		lastLineNumber++
 		line := strings.TrimSpace(scanner.Text())
 
 		if strings.HasPrefix(line, "##") {
@@ -94,7 +95,7 @@ func parseFile(filePath string) ([]*category, error) {
 			// Item
 			cells := strings.Split(line, ",")
 			if len(cells) != 2 {
-				return nil, fmt.Errorf("column count in line %d is %d instead of %d: '%s'", lastLine, len(cells), 2, line)
+				return nil, fmt.Errorf("column count in line %d is %d instead of %d: '%s'", lastLineNumber, len(cells), 2, line)
 			}
 
 			cellTwo := strings.TrimSpace(cells[1])
@@ -104,7 +105,7 @@ func parseFile(filePath string) ([]*category, error) {
 			} else {
 				int32Count, countErr := strconv.ParseInt(cellTwo, 10, 32)
 				if countErr != nil {
-					return nil, fmt.Errorf("malformed count on line %d: '%s'", lastLine, cellTwo)
+					return nil, fmt.Errorf("malformed count on line %d: '%s'", lastLineNumber, cellTwo)
 				}
 				count = int(int32Count)
 			}
@@ -119,8 +120,6 @@ func parseFile(filePath string) ([]*category, error) {
 				count: count,
 			})
 		}
-
-		lastLine++
 	}
 
 	return categories, nil
