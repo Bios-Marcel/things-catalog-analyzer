@@ -33,6 +33,10 @@ func (c *category) count() int {
 }
 
 func main() {
+	if len(os.Args) != 2 {
+		log.Fatalln("Usage: things-catalog-analyzer PATH")
+	}
+
 	absolutePath, pathError := filepath.Abs(os.Args[1])
 	if pathError != nil {
 		log.Fatalf("Error reading file: %s\n", pathError)
